@@ -1,0 +1,22 @@
+{
+  "name": "mtchabok/url",
+  "description": "PHP Url",
+  "version": "0.1.0",
+  "minimum-stability": "stable",
+  "license": "none",
+  "readme": "README.md",
+  "authors": [
+    {
+      "name": "Mohammad Taghi Chabok",
+      "email": "mtchabok@gmail.com"
+    }
+  ],
+  "require": {
+    "php": ">=7.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Mtchabok\\Url\\": "src/"
+    }
+  }
+}
