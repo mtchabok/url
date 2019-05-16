@@ -4,6 +4,7 @@
   "keywords": ["PHP Url", "Url", "Url Object"],
   "type": "library",
   "license": "MIT",
+  "readme": "README.md",
   "authors": [
     {
       "name": "Mohammad Taghi Chabok",
