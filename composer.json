@@ -1,12 +1,9 @@
 {
   "name": "mtchabok/url",
   "description": "PHP Url",
-  "type": "library",
-  "version": "0.1.1",
-  "minimum-stability": "stable",
-  "license": "MIT",
-  "readme": "README.md",
   "keywords": ["PHP Url", "Url", "Url Object"],
+  "type": "library",
+  "license": "MIT",
   "authors": [
     {
       "name": "Mohammad Taghi Chabok",

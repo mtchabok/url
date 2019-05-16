@@ -38,12 +38,7 @@ class Url
 	{
 		$url = '';
 		if($this->hasScheme()) $url.= "{$this->getScheme()}:";
-		if($this->hasHost()){
-			$url.= '//';
-			if($this->hasUser())
-				$url.= $this->getUser().($this->getPass() ?":{$this->getPass()}" :'').'@';
-			$url.= $this->getHost();
-		}
+		if($this->hasAuthority()) $url.= "//{$this->getAuthority()}";
 		if($this->getPath()) $url.= $this->getPath();
 		if($this->hasQuery()) $url.= "?{$this->getQuery()}";
 		if($this->hasFragment()) $url.= "#{$this->getFragment()}";
@@ -59,6 +54,10 @@ class Url
 	/** @return bool */
 	public function isRelative() :bool
 	{ return !$this->hasHost() && substr($this->getPath(),0,1) != '/'; }
+
+	/** @return bool */
+	public function isRelativeHost() :bool
+	{ return !$this->hasScheme() && $this->hasHost(); }
 
 	/** @return bool */
 	public function isAbsolute() :bool
@@ -91,11 +90,16 @@ class Url
 
 
 
-	/** @return bool */
+	/**
+	 * activated readOnly mode
+	 * @return bool
+	 */
 	public function isReadOnly():bool
 	{ return (bool) $this->_readOnly; }
 
 	/**
+	 * with readOnly mode not change any data on this object
+	 *
 	 * @param bool $readOnly
 	 * @return Url
 	 */
@@ -109,11 +113,15 @@ class Url
 
 
 
-	/** @return bool */
+	/**
+	 * check if scheme not empty
+	 * @return bool
+	 */
 	public function hasScheme() :bool
 	{ return !empty($this->_scheme); }
 
 	/**
+	 * check if equal scheme with scheme on this object
 	 * @param array|string|Url $scheme
 	 * @return bool
 	 */
@@ -138,6 +146,15 @@ class Url
 		return $this;
 	}
 
+	/**
+	 * @param string $scheme
+	 * @return Url
+	 */
+	public function withScheme(string $scheme) :Url
+	{
+		$url = clone $this;
+		return $url->setScheme($scheme);
+	}
 
 
 
@@ -227,6 +244,60 @@ class Url
 
 
 
+	/** @return bool */
+	public function hasUserInfo() :bool
+	{ return $this->hasUser(); }
+
+	/**
+	 * @param array|string|Url $userInfo
+	 * @return bool
+	 */
+	public function equalsUserInfo($userInfo) :bool
+	{ return in_array($this->getUserInfo(), is_array($userInfo) ?$userInfo :[($userInfo instanceof Url ?$userInfo->getHost() :(string) $userInfo)]); }
+
+	public function matchUserInfo($pattern) :bool
+	{ return (false===($return=preg_match($pattern, $this->getUserInfo(), $return))) ?false :($return ?$return :false); }
+
+	/**
+	 * @param string $default=null
+	 * @return string
+	 */
+	public function getUserInfo(string $default = null) :string
+	{
+		$userInfo = '';
+		if($this->hasUser())
+			$userInfo.= $this->getUser() . ($this->hasPass() ?":{$this->getPass()}" :'');
+		return (string) (empty($userInfo) ?$default :$userInfo);
+	}
+
+	/**
+	 * @param string $userInfo
+	 * @return $this|bool
+	 */
+	public function setUserInfo(string $userInfo)
+	{
+		if($this->isReadOnly()) return false;
+		$result = [];
+		preg_match('!'.'^(?P<user>[^\@\:]*)?(\:(?P<pass>[^\@]*)?)?$'.'!', trim((string) $userInfo), $result);
+		foreach (['user', 'pass'] as $name) $this->{'set'.ucfirst($name)}(isset($result[$name]) ?$result[$name] :'');
+		return $this;
+	}
+
+	/**
+	 * @param string $userInfo
+	 * @return Url
+	 */
+	public function withUserInfo(string $userInfo) :Url
+	{
+		$url = clone $this;
+		$url->setUserInfo($userInfo);
+		return $url;
+	}
+
+
+
+
+
 
 
 	/** @return bool */
@@ -251,7 +322,7 @@ class Url
 	 * @param string $default=null
 	 * @return string
 	 */
-	public function getHost($default = null) :string
+	public function getHost(string $default = null) :string
 	{ return (string) (empty($this->_host) ?$default :$this->_host); }
 
 	/**
@@ -265,7 +336,16 @@ class Url
 		return $this;
 	}
 
-
+	/**
+	 * @param string $host
+	 * @return Url
+	 */
+	public function withHost(string $host) :Url
+	{
+		$url = clone $this;
+		$url->setHost($host);
+		return $url;
+	}
 
 
 
@@ -293,10 +373,10 @@ class Url
 
 	/**
 	 * @param int $default=null
-	 * @return int
+	 * @return int|null
 	 */
 	public function getPort(int $default = null) :int
-	{ return (int) (empty($this->_port) ?intval($default) :(int) $this->_port); }
+	{ return (empty($this->_port) ?(null===$default ?null :intval($default)) :(int) $this->_port); }
 
 	/**
 	 * @param int|string $port
@@ -309,6 +389,86 @@ class Url
 		return $this;
 	}
 
+	/**
+	 * @param int|string $port
+	 * @return Url
+	 */
+	public function withPort($port)
+	{
+		$url = clone $this;
+		$url->setPort($port);
+		return $url;
+	}
+
+
+
+
+
+
+
+
+
+
+
+	/** @return bool */
+	public function hasAuthority() :bool
+	{ return $this->hasHost(); }
+
+	/**
+	 * @param array|string|Url $authority
+	 * @return bool
+	 */
+	public function equalsAuthority($authority) :bool
+	{ return in_array($this->getAuthority(), is_array($authority ) ?$authority :[$authority instanceof Url ?$authority->getAuthority() :(string) $authority]); }
+
+	/**
+	 * @param string $pattern
+	 * @return bool|int|array
+	 */
+	public function matchAuthority($pattern)
+	{ return (false===($return=preg_match($pattern, $this->getAuthority(), $return))) ?false :($return ?$return :false); }
+
+	/**
+	 * @param string $default=null
+	 * @return string
+	 */
+	public function getAuthority(string $default = null) :string
+	{
+		$authority = '';
+		if($this->hasHost()){
+			if($this->hasUserInfo())
+				$authority.= "{$this->getUserInfo()}@";
+			$authority.=$this->getHost();
+			if($this->hasPort())
+				$authority.= ":{$this->getPort()}";
+		}
+		return (string) (empty($authority) ?$default :$authority);
+	}
+
+	/**
+	 * @param string $authority=null
+	 * @return $this|bool
+	 */
+	public function setAuthority(string $authority = null)
+	{
+		if($this->isReadOnly()) return false;
+		$result = [];
+		preg_match('!'.'^((?P<user>[^\@\:]*)?(\:(?P<pass>[^\@]*)?)?\@)?(?P<host>[^\:]*)?(\:(?P<port>\d*)?)?$'.'!', trim((string) $authority), $result);
+		foreach (['user', 'pass', 'host', 'port'] as $name)
+			$this->{'set'.ucfirst($name)}(isset($result[$name]) ?$result[$name] :'');
+		return $this;
+	}
+
+	/**
+	 * @param string $authority
+	 * @return Url
+	 */
+	public function withAuthority(string $authority)
+	{
+		$url = clone $this;
+		$url->setAuthority($authority);
+		return $url;
+	}
 
 
 
@@ -369,6 +529,17 @@ class Url
 		else
 			$this->_path = static::normalizePath($path);
 		return $this;
+	}
+
+	/**
+	 * @param string $path
+	 * @return Url
+	 */
+	public function withPath(string $path) :Url
+	{
+		$url = clone $this;
+		$url->setPath($path);
+		return $url;
 	}
 
 
@@ -442,6 +613,17 @@ class Url
 		return $this;
 	}
 
+	/**
+	 * @param string|array $query
+	 * @return Url
+	 */
+	public function withQuery($query)
+	{
+		$url = clone $this;
+		$url->setQuery($query);
+		return $url;
+	}
+
 
 
 	/**
@@ -504,6 +686,16 @@ class Url
 	public function setFragment($fragment)
 	{ if($this->isReadOnly()) return false; $this->_fragment = (string) $fragment; return $this; }
 
+	/**
+	 * @param string $fragment
+	 * @return Url
+	 */
+	public function withFragment(string $fragment) :Url
+	{
+		$url = clone $this;
+		$url->setFragment($fragment);
+		return $url;
+	}
 
 
 
