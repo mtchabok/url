@@ -1,49 +1,148 @@
 <?php
-/**
- * Created by PhpStorm.
- * User: mtchabok
- * Date: 23/04/2019
- * Time: 10:48 AM
- */
-
 namespace Mtchabok\Url;
+use Mtchabok\Url\Extra\UrlQuery;
 
 /**
  * Class Url
  * @package Mtchabok\Url
+ *
+ * @method bool hasScheme()
+ * @method bool hasUser()
+ * @method bool hasPass()
+ * @method bool hasHost()
+ * @method bool hasPath()
+ * @method bool hasFragment()
+ *
+ * @method string getScheme(string $default=null)
+ * @method string getUser(string $default=null)
+ * @method string getPass(string $default=null)
+ * @method string getHost(string $default=null)
+ * @method string getPath(string $default=null)
+ * @method string getFragment(string $default=null)
+ *
+ * @method bool equalsScheme(string|string[]|Url|UrlModel $scheme)
+ * @method bool equalsUser(string|string[]|Url|UrlModel $user)
+ * @method bool equalsPass(string|string[]|Url|UrlModel $pass)
+ * @method bool equalsUserInfo(string|string[]|Url|UrlModel $userInfo)
+ * @method bool equalsHost(string|string[]|Url|UrlModel $host)
+ * @method bool equalsAuthority(string|string[]|Url|UrlModel $authority)
+ * @method bool equalsPath(string|string[]|Url|UrlModel $path)
+ * @method bool equalsFragment(string|string[]|Url|UrlModel $fragment)
+ *
+ * @method Url setScheme(string|Url|UrlModel $scheme)
+ * @method Url setUser(string|Url|UrlModel $user)
+ * @method Url setPass(string|Url|UrlModel $pass)
+ * @method Url setHost(string|Url|UrlModel $host)
+ * @method Url setFragment(string|Url|UrlModel $fragment)
+ *
+ * @method Url withScheme(string|Url|UrlModel $scheme)
+ * @method Url withUser(string|Url|UrlModel $user)
+ * @method Url withPass(string|Url|UrlModel $pass)
+ * @method Url withUserInfo(string|Url|UrlModel $userInfo)
+ * @method Url withHost(string|Url|UrlModel $host)
+ * @method Url withPort(int|Url|UrlModel $port)
+ * @method Url withAuthority(string|Url|UrlModel $authority)
+ * @method Url withPath(string|Url|UrlModel $path)
+ * @method Url withFragment(string|Url|UrlModel $fragment)
+ *
  */
-class Url
+class Url extends UrlModel
 {
-
-	protected static $_urlPattern = '^((?P<scheme>[a-zA-Z0-9]*)\:)?(\/\/((?P<user>[^\@\:]*)?(\:(?P<pass>[^\@]*)?)?\@)?(?P<host>[^\/\:\?\#]*)?(\:(?P<port>[^\/]\d*)?)?)?(?P<path>[^\?\#]*)?(\?(?P<query>[^\#]*)?)?(\#(?P<fragment>.*)?)?$';
-
-	private $_readOnly    = false;
-
-	private $_scheme    = '';
-	private $_user      = '';
-	private $_pass      = null;
-	private $_host      = '';
-	private $_port      = 0;
-	private $_path      = '';
-	private $_query     = '';
-	private $_queryArray= [];
-	private $_fragment  = '';
+	const STRUCTURE_REGEX = <<<REGEXP
+#^(?:(?P<scheme>[^\:\/]*)\:)?(?:\/\/(?:(?P<user>[^\@\:]*)(?:\:(?P<pass>[^\@]*))?\@)?(?P<host>[^\/\:\?\&\#]*)(?:\:(?P<port>[^\/\?\&\#]*))?)?(?P<path>[^\?\&\#]*)?(?:[\?|\&](?P<query>[^\#]*))?(?:\#(?P<fragment>.*))?$#u
+REGEXP;
 
 
 
 
 
-	/** @return string */
-	public function toString() :string
+
+	/**
+	 * @param string[] $path [optional]
+	 * @return string
+	 */
+	public static function normalizePath(string ...$path)
 	{
-		$url = '';
-		if($this->hasScheme()) $url.= "{$this->getScheme()}:";
-		if($this->hasAuthority()) $url.= "//{$this->getAuthority()}";
-		if($this->getPath()) $url.= $this->getPath();
-		if($this->hasQuery()) $url.= "?{$this->getQuery()}";
-		if($this->hasFragment()) $url.= "#{$this->getFragment()}";
-		return $url;
+		$pathNormalized = '';
+		foreach ($path as $p){
+			if(!strlen($p)) continue;
+			if(strlen($pathNormalized)){
+				$hasSlashEndPath = '/'==substr($pathNormalized, -1);
+				if($hasSlashEndPath && '/'==substr($p, 0, 1))
+					$pathNormalized.= substr($p,1);
+				elseif($hasSlashEndPath || '/'==substr($p, 0, 1))
+					$pathNormalized.= $p;
+				else
+					$pathNormalized.= "/{$p}";
+			}else $pathNormalized = $p;
+		}
+		$path = strlen($pathNormalized) ?explode('/', $pathNormalized) :[];
+		$pathNormalized = [];
+		foreach ($path as $segment){
+			if($segment!='.'){
+				if($segment=='..') array_pop($pathNormalized);
+				else $pathNormalized[] = $segment;
+			}
+		}
+		return implode('/', $pathNormalized);
 	}
+
+	/**
+	 * @param string $url
+	 * @return UrlModel
+	 */
+	public static function parse(string $url) :UrlModel
+	{ return static::newUrlModel($url); }
+
+	/**
+	 * @param string|array|object|Url|UrlModel $url
+	 * @param array $onlyItems [optional] [scheme, authority, user, pass, host, port, path, query, fragment]
+	 * @return string
+	 */
+	public static function build($url, array $onlyItems = null) :string
+	{ return ($url instanceof Url ?$url :static::newUrl($url))->toString($onlyItems); }
+
+	/**
+	 * @param string|array|Url|UrlModel $url1
+	 * @param string|array|Url|UrlModel $url2
+	 * @param array $onlyItems [optional] [scheme, authority, user, pass, host, port, path, query, fragment]
+	 * @return bool
+	 */
+	public static function equals($url1, $url2, array $onlyItems = null) :bool
+	{ return ($url1 instanceof Url ?$url1 :static::newUrl($url1))->equalsWith($url2, $onlyItems); }
+
+
+
+
+
+	/**
+	 * @param string|array|Url $url [optional]
+	 * @return Url
+	 */
+	public static function newUrl($url = null)
+	{ return new static($url); }
+
+	/**
+	 * @param string|array|object|UrlModel $url [optional]
+	 * @return UrlModel
+	 */
+	public static function newUrlModel($url = null) :UrlModel
+	{ return new UrlModel($url); }
+
+	/** @return Url */
+	public static function newCurrentUrl()
+	{
+		$url = !empty($_SERVER['REQUEST_SCHEME']) ?"{$_SERVER['REQUEST_SCHEME']}:" :('http'.(!empty($_SERVER['HTTPS']) ?'s:' :':'));
+		$url.= "//{$_SERVER['HTTP_HOST']}";
+		$url.= substr($_SERVER['REQUEST_URI'], 0, 1)=='/'
+			?$_SERVER['REQUEST_URI'] :"/{$_SERVER['REQUEST_URI']}";
+		return static::newUrl($url);
+	}
+
+
+
+
+
 
 
 
@@ -53,189 +152,56 @@ class Url
 
 	/** @return bool */
 	public function isRelative() :bool
-	{ return !$this->hasHost() && substr($this->getPath(),0,1) != '/'; }
+	{ return !$this->hasScheme() || !$this->hasHost(); }
 
 	/** @return bool */
-	public function isRelativeHost() :bool
-	{ return !$this->hasScheme() && $this->hasHost(); }
-
-	/** @return bool */
-	public function isAbsolute() :bool
-	{ return $this->hasScheme() && $this->hasHost() && (!$this->hasPath() || substr($this->getPath(), 0, 1)=='/'); }
-
+	public function isRelativePath() :bool
+	{ return !$this->hasHost() && $this->hasPath() && substr($this->getPath(),0,1)!='/'; }
 
 	/**
-	 * @param string|Url $url
+	 * @param string|array|UrlModel $url
+	 * @param array $itemsOnly [optional] [scheme, authority, user, pass, host, port, path, query, fragment]
 	 * @return bool
 	 */
-	public function equals($url) :bool
+	public function equalsWith($url, array $itemsOnly = null) :bool
 	{
-		if(!$url instanceof Url) $url = new static($url);
-		return $this->equalsScheme($url) && $this->equalsUser($url) && $this->equalsPass($url) && $this->equalsHost($url) && $this->equalsPort($url)
-			&& $this->equalsPath($url) && $this->equalsQuery($url) && $this->equalsFragment($url);
+		if(!$itemsOnly) $itemsOnly = ['scheme', 'authority', 'path', 'query', 'fragment'];
+		if(!$url instanceof Url && $url instanceof UrlModel) $url = static::newUrlModel($url);
+		$return = false;
+		foreach ($itemsOnly as $name){
+			$return = true;
+			$m = 'equals'.ucfirst($name);
+			if(!$this->$m($url)) return false;
+		} return $return;
 	}
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-
-
 
 	/**
-	 * activated readOnly mode
-	 * @return bool
-	 */
-	public function isReadOnly():bool
-	{ return (bool) $this->_readOnly; }
-
-	/**
-	 * with readOnly mode not change any data on this object
-	 *
-	 * @param bool $readOnly
+	 * @param string|array|UrlModel $url
+	 * @param array $itemsOnly [optional] [scheme, authority, user, pass, host, port, path, query, fragment]
 	 * @return Url
 	 */
-	public function setReadOnly(bool $readOnly) :Url
-	{ if(true!==$this->_readOnly) $this->_readOnly = (bool) $readOnly; return $this; }
-
-
-
-
-
-
-
-
-	/**
-	 * check if scheme not empty
-	 * @return bool
-	 */
-	public function hasScheme() :bool
-	{ return !empty($this->_scheme); }
-
-	/**
-	 * check if equal scheme with scheme on this object
-	 * @param array|string|Url $scheme
-	 * @return bool
-	 */
-	public function equalsScheme($scheme) :bool
-	{ return in_array($this->getScheme(), is_array($scheme) ?$scheme :[($scheme instanceof Url ?$scheme->getScheme() :(string) $scheme)]); }
-
-	/**
-	 * @param string $default=null
-	 * @return string
-	 */
-	public function getScheme(string $default = null) :string
-	{ return (string) (empty($this->_scheme) ?$default :$this->_scheme); }
-
-	/**
-	 * @param string $scheme
-	 * @return $this|false
-	 */
-	public function setScheme(string $scheme)
+	public function with($url, array $itemsOnly = null)
 	{
-		if($this->isReadOnly()) return false;
-		$this->_scheme = strtolower((string) $scheme);
-		return $this;
+		if(!$itemsOnly) $itemsOnly = ['scheme','authority','path','query','fragment'];
+		$urlObj = clone $this;
+		if($url instanceof Url){
+			foreach ($itemsOnly as $item){
+				if($url->{'has'.ucfirst($item)}())
+					$urlObj->{'set'.ucfirst($item)}($url->{'get'.ucfirst($item)}());
+			}
+		}else{
+			if (!$url instanceof UrlModel) $url = static::newUrlModel($url);
+			if(array_key_exists('authority', ($itemsOnly = array_flip($itemsOnly)))){
+				unset($itemsOnly['authority']);
+				$itemsOnly+= ['user'=>'','pass'=>'','host'=>'','port'=>''];
+			} $itemsOnly = array_keys($itemsOnly);
+			foreach ($itemsOnly as $item){
+				if(isset($url->{$item}))
+					$urlObj->{'set'.ucfirst($item)}($url->{$item});
+			}
+		}
+		return $urlObj;
 	}
-
-	/**
-	 * @param string $scheme
-	 * @return Url
-	 */
-	public function withScheme(string $scheme) :Url
-	{
-		$url = clone $this;
-		return $url->setScheme($scheme);
-	}
-
-
-
-
-
-
-
-
-
-
-
-
-	/** @return bool */
-	public function hasUser() :bool
-	{ return !empty($this->_user); }
-
-	/**
-	 * @param array|string|Url $user
-	 * @return bool
-	 */
-	public function equalsUser($user) :bool
-	{ return in_array($this->getUser(), is_array($user) ?$user :[($user instanceof Url ?$user->getUser() :(string) $user)]); }
-
-	/**
-	 * @param string $default=null
-	 * @return string
-	 */
-	public function getUser(string $default = null) :string
-	{ return (string) (empty($this->_user) ?$default :$this->_user); }
-
-	/**
-	 * @param string $user
-	 * @return $this|false
-	 */
-	public function setUser(string $user)
-	{
-		if($this->isReadOnly()) return false;
-		$this->_user = (string) $user;
-		return $this;
-	}
-
-
-
-
-
-
-
-
-
-	/** @return bool */
-	public function hasPass()
-	{ return null!==$this->_pass; }
-
-	/**
-	 * @param string|Url $pass
-	 * @return bool
-	 */
-	public function equalsPass($pass) :bool
-	{ return $this->getPass()===($pass instanceof Url ?$pass->getPass() :(string) $pass); }
-
-	/**
-	 * @param string|null $default=null
-	 * @return string|null
-	 */
-	public function getPass($default = null)
-	{ return null===$this->_pass ?$default :$this->_pass; }
-
-	/**
-	 * @param string|null $pass
-	 * @return $this|false
-	 */
-	public function setPass($pass)
-	{
-		if($this->isReadOnly()) return false;
-		$this->_pass = null===$pass ?null :(string) $pass;
-		return $this;
-	}
-
-
-
-
 
 
 
@@ -249,17 +215,7 @@ class Url
 	{ return $this->hasUser(); }
 
 	/**
-	 * @param array|string|Url $userInfo
-	 * @return bool
-	 */
-	public function equalsUserInfo($userInfo) :bool
-	{ return in_array($this->getUserInfo(), is_array($userInfo) ?$userInfo :[($userInfo instanceof Url ?$userInfo->getHost() :(string) $userInfo)]); }
-
-	public function matchUserInfo($pattern) :bool
-	{ return (false===($return=preg_match($pattern, $this->getUserInfo(), $return))) ?false :($return ?$return :false); }
-
-	/**
-	 * @param string $default=null
+	 * @param string $default [optional]
 	 * @return string
 	 */
 	public function getUserInfo(string $default = null) :string
@@ -272,135 +228,15 @@ class Url
 
 	/**
 	 * @param string $userInfo
-	 * @return $this|bool
+	 * @return $this
 	 */
 	public function setUserInfo(string $userInfo)
 	{
-		if($this->isReadOnly()) return false;
 		$result = [];
-		preg_match('!'.'^(?P<user>[^\@\:]*)?(\:(?P<pass>[^\@]*)?)?$'.'!', trim((string) $userInfo), $result);
-		foreach (['user', 'pass'] as $name) $this->{'set'.ucfirst($name)}(isset($result[$name]) ?$result[$name] :'');
+		preg_match('#^(?P<user>[^\:]*)(?:\:(?P<pass>.*))?$#', $userInfo, $result);
+		foreach (['user', 'pass'] as $name) $this->{'set'.ucfirst($name)}(isset($result[$name]) ?$result[$name] :null);
 		return $this;
 	}
-
-	/**
-	 * @param string $userInfo
-	 * @return Url
-	 */
-	public function withUserInfo(string $userInfo) :Url
-	{
-		$url = clone $this;
-		$url->setUserInfo($userInfo);
-		return $url;
-	}
-
-
-
-
-
-
-
-	/** @return bool */
-	public function hasHost() :bool
-	{ return !empty($this->_host); }
-
-	/**
-	 * @param array|string|Url $host
-	 * @return bool
-	 */
-	public function equalsHost($host) :bool
-	{ return in_array($this->getHost(), is_array($host) ?$host :[($host instanceof Url ?$host->getHost() :(string) $host)]); }
-
-	/**
-	 * @param string $pattern
-	 * @return bool|int|array
-	 */
-	public function matchHost($pattern)
-	{ return (false===($return=preg_match($pattern, $this->getHost(), $return))) ?false :($return ?$return :false); }
-
-	/**
-	 * @param string $default=null
-	 * @return string
-	 */
-	public function getHost(string $default = null) :string
-	{ return (string) (empty($this->_host) ?$default :$this->_host); }
-
-	/**
-	 * @param string|null $host
-	 * @return $this|false
-	 */
-	public function setHost(string $host)
-	{
-		if($this->isReadOnly()) return false;
-		$this->_host = strtolower((string) $host);
-		return $this;
-	}
-
-	/**
-	 * @param string $host
-	 * @return Url
-	 */
-	public function withHost(string $host) :Url
-	{
-		$url = clone $this;
-		$url->setHost($host);
-		return $url;
-	}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	/** @return bool */
-	public function hasPort()
-	{ return !empty($this->_port); }
-
-	/**
-	 * @param array|string|int|Url $port
-	 * @return bool
-	 */
-	public function equalsPort($port) :bool
-	{ return in_array($this->getPort(), is_array($port) ?$port :[($port instanceof Url ?$port->getPort() :intval($port))]); }
-
-	/**
-	 * @param int $default=null
-	 * @return int|null
-	 */
-	public function getPort(int $default = null) :int
-	{ return (empty($this->_port) ?(null===$default ?null :intval($default)) :(int) $this->_port); }
-
-	/**
-	 * @param int|string $port
-	 * @return $this|false
-	 */
-	public function setPort($port)
-	{
-		if($this->isReadOnly()) return false;
-		$this->_port = intval($port);
-		return $this;
-	}
-
-	/**
-	 * @param int|string $port
-	 * @return Url
-	 */
-	public function withPort($port)
-	{
-		$url = clone $this;
-		$url->setPort($port);
-		return $url;
-	}
-
-
 
 
 
@@ -415,21 +251,7 @@ class Url
 	{ return $this->hasHost(); }
 
 	/**
-	 * @param array|string|Url $authority
-	 * @return bool
-	 */
-	public function equalsAuthority($authority) :bool
-	{ return in_array($this->getAuthority(), is_array($authority ) ?$authority :[$authority instanceof Url ?$authority->getAuthority() :(string) $authority]); }
-
-	/**
-	 * @param string $pattern
-	 * @return bool|int|array
-	 */
-	public function matchAuthority($pattern)
-	{ return (false===($return=preg_match($pattern, $this->getAuthority(), $return))) ?false :($return ?$return :false); }
-
-	/**
-	 * @param string $default=null
+	 * @param string $default [optional]
 	 * @return string
 	 */
 	public function getAuthority(string $default = null) :string
@@ -446,29 +268,22 @@ class Url
 	}
 
 	/**
-	 * @param string $authority=null
-	 * @return $this|bool
+	 * @param string $authority
+	 * @return $this
 	 */
-	public function setAuthority(string $authority = null)
+	public function setAuthority(string $authority)
 	{
-		if($this->isReadOnly()) return false;
 		$result = [];
-		preg_match('!'.'^((?P<user>[^\@\:]*)?(\:(?P<pass>[^\@]*)?)?\@)?(?P<host>[^\:]*)?(\:(?P<port>\d*)?)?$'.'!', trim((string) $authority), $result);
+		preg_match('!'.'^(?:(?P<user>[^\@\:]*)(?:\:(?P<pass>[^\@]*))?\@)?(?P<host>[^\:\/]*)?(?:\:(?P<port>[^\/]*))?$'.'!u', (string) $authority, $result, PREG_UNMATCHED_AS_NULL);
 		foreach (['user', 'pass', 'host', 'port'] as $name)
-			$this->{'set'.ucfirst($name)}(isset($result[$name]) ?$result[$name] :'');
+			$this->{'set'.ucfirst($name)}(isset($result[$name]) ?$result[$name] :null);
 		return $this;
 	}
 
-	/**
-	 * @param string $authority
-	 * @return Url
-	 */
-	public function withAuthority(string $authority)
-	{
-		$url = clone $this;
-		$url->setAuthority($authority);
-		return $url;
-	}
+
+
+
+
 
 
 
@@ -478,70 +293,85 @@ class Url
 
 
 	/** @return bool */
-	public function hasPath() :bool
-	{ return !empty($this->_path); }
+	public function hasPort() :bool
+	{ return isset($this->port) && is_int($this->port) && $this->port; }
 
 	/**
-	 * @param array|string|Url $path
+	 * @param int $default [optional]
+	 * @return int
+	 */
+	public function getPort(int $default = null) :int
+	{ return $this->hasPort() ?$this->port :(int) $default; }
+
+	/**
+	 * @param int|int[]|Url $port
 	 * @return bool
 	 */
-	public function equalsPath($path) :bool
-	{ return in_array($this->getPath(), is_array($path) ?$path :[($path instanceof Url ?$path->getPath() :(string) $path)]); }
+	public function equalsPort($port) :bool
+	{
+		$ports = [];
+		foreach (is_array($port)?$port:[$port] as $p){
+			if($p instanceof UrlModel)
+				$ports[] = isset($p->port) && is_numeric($p->port) ?(int) $p->port :0;
+			elseif (is_numeric($p)) $ports[] = (int)$p;
+		}
+		return in_array($this->getPort(), $ports);
+	}
 
 	/**
-	 * @param string $pattern
-	 * @return bool|int|array
+	 * @param int|string|UrlModel $port
+	 * @return $this
 	 */
-	public function matchPath($pattern)
-	{ return (false===($return=preg_match($pattern, $this->getPath(), $return))) ?false :($return ?$return :false); }
+	public function setPort($port)
+	{
+		if(is_numeric($port))
+			$this->port = (int) $port;
+		elseif ($port instanceof Url)
+			$this->port = $port->getPort(0);
+		elseif ($port instanceof UrlModel)
+			$this->port = (isset($port->port) && is_numeric($port->port)) ?(int) $port->port :0;
+		else
+			$this->port = 0;
+		return $this;
+	}
+
+
+
+
+
+
+
+
+
 
 	/**
-	 * @param string $default=null
-	 * @return string
-	 */
-	public function getPath(string $default = null) :string
-	{ return (string) (empty($this->_path) ?$default :$this->_path); }
-
-	/**
-	 * @param string|null $path
-	 * @return $this|false
+	 * @param string $path
+	 * @return $this
 	 */
 	public function setPath(string $path)
 	{
-		if($this->isReadOnly()) return false;
-		$this->_path = static::normalizePath((string) $path);
+		if(is_null($path) || strlen($path = static::normalizePath((string) $path))===0)
+			$this->path = null;
+		else $this->path = $path;
 		return $this;
 	}
 
 	/**
 	 * @param string $path
-	 * @return $this|false
+	 * @param bool $prepend [optional]
+	 * @return $this
 	 */
-	public function addPath(string $path)
+	public function addPath(string $path, bool $prepend = null)
 	{
-		if($this->isReadOnly()) return false;
-		if('/'==substr($this->_path, -1) && '/'==substr($path, 0, 1))
-			$this->_path = static::normalizePath($this->_path.substr($path,1));
-		elseif('/'==substr($this->_path, -1) || '/'==substr($path, 0, 1))
-			$this->_path = static::normalizePath($this->_path.$path);
-		elseif(strlen($this->_path))
-			$this->_path = static::normalizePath("{$this->_path}/{$path}");
-		else
-			$this->_path = static::normalizePath($path);
+		if($this->hasPath()) {
+			$this->path = $prepend
+				? static::normalizePath((string)$path, (string)$this->path)
+				: static::normalizePath((string)$this->path, (string)$path);
+			if(!strlen((string) $this->path)) $this->path = null;
+		}else
+			$this->setPath($path);
 		return $this;
 	}
-
-	/**
-	 * @param string $path
-	 * @return Url
-	 */
-	public function withPath(string $path) :Url
-	{
-		$url = clone $this;
-		$url->setPath($path);
-		return $url;
-	}
-
 
 
 
@@ -552,173 +382,44 @@ class Url
 
 	/** @return bool */
 	public function hasQuery() :bool
-	{ return !empty($this->_query); }
+	{ return isset($this->query) && $this->query instanceof UrlQuery && !$this->query->isEmpty(); }
+
+	/** @return UrlQuery */
+	public function getQuery() :UrlQuery
+	{
+		if(!isset($this->query)) $this->query = new UrlQuery();
+		elseif (!$this->query instanceof UrlQuery) $this->query = new UrlQuery($this->query);
+		return $this->query;
+	}
 
 	/**
-	 * @param string|array|Url $query
+	 * @param string|array|UrlQuery|Url $query
 	 * @return bool
 	 */
 	public function equalsQuery($query) :bool
 	{
-		if($query instanceof Url) $query = $query->getQueryArray();
-		elseif(!is_array($query)) $query = parse_str((string) $query, $query);
-		foreach ($query as $k=>$v){
-			if($this->getQueryParam($k)!=$v) return false;
-		}
-		return true;
+		if(isset($this->query) && $this->query instanceof UrlQuery){
+			return $this->query->equals($query);
+		}elseif ($query instanceof UrlModel){
+			return !isset($query->query) || !$query->query instanceof UrlQuery || $query->query->isEmpty();
+		}else
+			return is_null($query);
 	}
 
 	/**
-	 * @param string $default=null
-	 * @return string
-	 */
-	public function getQuery(string $default = null) :string
-	{ return (string) (empty($this->_query) ?$default :$this->_query); }
-
-	/**
-	 * @param array $default=null
-	 * @return array
-	 */
-	public function getQueryArray(array $default = null) :array
-	{ return (array) (empty($this->_queryArray) ?$default :$this->_queryArray); }
-
-	/**
-	 * @param string|array $query
-	 * @return $this|false
+	 * @param null|string|array|UrlQuery|Url $query
+	 * @return $this
 	 */
 	public function setQuery($query)
-	{
-		if($this->isReadOnly()) return false;
-		if(is_array($query)){
-			$this->_queryArray = $query;
-			$this->_query = http_build_query($query);
-		}elseif (is_string($query)){
-			$this->_query = substr($query, 0, 1)=='?' ?substr($query, 1) :$query;
-			$this->_queryArray = [];
-			parse_str($this->_query, $this->_queryArray);
-		}
-		return $this;
-	}
+	{ $this->getQuery()->import($query, true); return $this; }
 
 	/**
-	 * @param string|array $query
-	 * @return $this|false
+	 * @param string|array|UrlQuery|Url $query
+	 * @return $this
 	 */
 	public function addQuery($query)
-	{
-		if($this->isReadOnly()) return false;
-		if(!is_array($query)) parse_str((string) $query, $query);
-		$this->_queryArray = array_merge($this->_queryArray, $query);
-		$this->_query = http_build_query($this->_queryArray);
-		return $this;
-	}
+	{ $this->getQuery()->import($query); return $this; }
 
-	/**
-	 * @param string|array $query
-	 * @return Url
-	 */
-	public function withQuery($query)
-	{
-		$url = clone $this;
-		$url->setQuery($query);
-		return $url;
-	}
-
-
-
-	/**
-	 * @param string $name
-	 * @param string|array $default=null
-	 * @return string|array|null
-	 */
-	public function getQueryParam(string $name, $default = null)
-	{ return isset($this->_queryArray[$name]) ?$this->_queryArray[$name] :(null===$default ?null :$default); }
-
-	/**
-	 * @param string $name
-	 * @param string|array $value=null
-	 * @return $this|false
-	 */
-	public function setQueryParam(string $name, $value = null)
-	{
-		if($this->isReadOnly()) return false;
-		if(null===$value)
-			unset($this->_queryArray[$name]);
-		else
-			$this->_queryArray[$name] = $value;
-		$this->_query = http_build_query($this->_queryArray);
-		return $this;
-	}
-
-
-
-
-
-
-
-
-
-
-
-
-	/** @return bool */
-	public function hasFragment()
-	{ return !empty($this->_fragment); }
-
-	/**
-	 * @param array|string|Url $fragment
-	 * @return bool
-	 */
-	public function equalsFragment($fragment) :bool
-	{ return in_array($this->getFragment(), is_array($fragment) ?$fragment :[($fragment instanceof Url ?$fragment->getFragment() :(string) $fragment)]); }
-
-	/**
-	 * @param string|int $default=null
-	 * @return string|null
-	 */
-	public function getFragment($default = null)
-	{ return null===$this->_fragment ?$default :$this->_fragment; }
-
-	/**
-	 * @param string $fragment
-	 * @return $this|false
-	 */
-	public function setFragment($fragment)
-	{ if($this->isReadOnly()) return false; $this->_fragment = (string) $fragment; return $this; }
-
-	/**
-	 * @param string $fragment
-	 * @return Url
-	 */
-	public function withFragment(string $fragment) :Url
-	{
-		$url = clone $this;
-		$url->setFragment($fragment);
-		return $url;
-	}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	/** @return Url */
-	public static function current()
-	{
-		$url = !empty($_SERVER['REQUEST_SCHEME']) ?"{$_SERVER['REQUEST_SCHEME']}:" :('http'.(!empty($_SERVER['HTTPS']) ?'s:' :':'));
-		$url.= "//{$_SERVER['HTTP_HOST']}";
-		$url.= substr($_SERVER['REQUEST_URI'], 0, 1)=='/'
-			?$_SERVER['REQUEST_URI'] :"/{$_SERVER['REQUEST_URI']}";
-		return new static($url);
-	}
 
 
 
@@ -727,82 +428,71 @@ class Url
 
 
 	/**
-	 * @param string $url
-	 * @return Url
-	 */
-	public static function parse($url)
-	{ return new static($url); }
-
-
-
-
-
-	/**
-	 * @param string $path
+	 * @param array $onlyItems [optional] [scheme, authority, user, pass, host, port, path, query, fragment]
 	 * @return string
 	 */
-	public static function normalizePath($path)
+	public function toString(array $onlyItems = null) :string
 	{
-		$path = explode('/', $path);
-		$pathNormalized = [];
-		foreach ($path as $segment){
-			if($segment!='.'){
-				if($segment=='..') array_pop($pathNormalized);
-				else $pathNormalized[] = $segment;
-			}
+		if(!$onlyItems) $onlyItems = ['scheme', 'authority', 'path', 'query', 'fragment'];
+		$url = [];
+		foreach ($onlyItems as $item){
+			if($this->{'has'.ucfirst($item)}())
+				$url[$item] = (string) $this->{'get'.ucfirst($item)}();
 		}
-		return implode('/', $pathNormalized);
+		$urlString = '';
+		if(array_key_exists('authority', $url)){
+			$urlString = "//{$url['authority']}/";
+		}elseif (array_key_exists('host', $url)){
+			if(array_key_exists('user', $url))
+				$urlString.= $url['user'] . (array_key_exists('pass', $url) ?":{$url['pass']}" :'') . '@';
+			$urlString = "//{$urlString}{$url['host']}" . (array_key_exists('port', $url) ?":{$url['port']}" :'') . '/';
+		}
+		if(array_key_exists('path', $url))
+			$urlString.= strlen($urlString) ?(substr($url['path'],0,1)=='/' ?substr($url['path'],1) :$url['path']) :$url['path'];
+		if(array_key_exists('scheme', $url)) $urlString = "{$url['scheme']}:{$urlString}";
+		if(array_key_exists('query', $url)) $urlString.= "?{$url['query']}";
+		if(array_key_exists('fragment', $url)) $urlString.= "#{$url['fragment']}";
+		return $urlString;
 	}
 
 
-
-
-
-
-
-
-	/**
-	 * Url constructor.
-	 * @param string|Url $url
-	 * @param bool $readOnly=null
-	 */
-	public function __construct($url = null, $readOnly = null)
-	{
-		if(null!==$url){
-			$result = [];
-			preg_match('!'.static::$_urlPattern.'!', trim((string) $url), $result);
-
-			$tempReadOnly = (bool) $this->_readOnly;
-			$this->_readOnly = false;
-			foreach (['scheme', 'user', 'pass', 'host', 'port', 'path', 'query', 'fragment'] as $name){
-				if (isset($result[$name])) $this->{'set'.ucfirst($name)}($result[$name]);
-			}
-			if($tempReadOnly!==$this->_readOnly) $this->_readOnly = (bool) $tempReadOnly;
-		}
-		if(null!==$readOnly)
-			$this->setReadOnly((bool) $readOnly);
-	}
 
 
 	public function __get($name)
 	{}
 
-	public function __set($name, $value)
-	{}
-
-	public function __isset($name)
-	{}
-
-	public function __unset($name)
-	{}
-
 	public function __toString()
 	{ return $this->toString(); }
 
-	public function __clone()
+	public function __call($name, $args)
 	{
-		$this->_readOnly = false;
+		if(preg_match('#^(?P<action>has|get|equals|set|with)(?P<name>[A-Z]\w*)$#', $name, $result)){
+			$name = lcfirst($result['name']);
+			$exist = isset($this->{$name}) && is_string($this->{$name});
+			if(!isset($args[0])) $args[0] = null;
+			switch ($result['action']){
+				case 'has': return $exist;
+				case 'get': return (string) ($exist ?$this->{$name} :$args[0]);
+				case 'equals':
+					$value = $exist ?$this->$name :null;
+					if($args[0] instanceof Url){
+						if($exist) return $args[0]->{'has'.ucfirst($name)}() && $value==$args[0]->{'get'.ucfirst($name)}();
+						else return !$args[0]->{'has'.ucfirst($name)}();
+					}elseif ($args[0] instanceof UrlModel){
+						if($exist) return isset($args[0]->$name) && is_string($args[0]->$name) && $value==$args[0]->$name;
+						else return !isset($args[0]->$name) || !is_string($args[0]->$name);
+					}elseif (is_array($args[0])) return in_array($value, $args[0]);
+					return $value===$args[0];
+				case 'set':
+					if($args[0] instanceof UrlModel) $this->{$name} = $args[0]->$name;
+					else $this->{$name} = $args[0];
+					return $this;
+				case 'with':
+					$url = clone $this;
+					$url->{'set'.ucfirst($name)}($args[0]);
+					return $url;
+			}
+		}
+		return null;
 	}
-
-
 }

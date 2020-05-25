@@ -2,12 +2,10 @@
 PHP class for handling URLs.
 
 - Parse Url string Customized and create objects
-- check relative or absolute url
-- Ability to avoid changing url object by readOnly mode 
+- check relative url
 - add or modify any part of the url objects
 - add or modify query parameters
 - compare any part of url with another url or part of that
-- match with pattern on url or any part of url
 - support PSR-7 method`s
 
 Installation
@@ -26,49 +24,58 @@ How To Usage
 ```php
 use \Mtchabok\Url\Url;
 
-$url = Url::current(); // return current http request url
-
 $url = new Url('https://www.domain.com/dir1/dir2/file.ext?param1=val1&param2=val2');
 
-$url = Url::parse('https://www.domain.com/dir1/dir2/file.ext?param1=val1&param2=val2');
+$url = Url::newUrl('https://www.domain.com/dir1/dir2/file.ext?param1=val1&param2=val2');
 
-$url = Url::blank()
-        ->setScheme('https')
-        ->setAuthority('www.domain.com')
-        ->setPath('/dir1/dir2/file.ext')
-        ->setQuery('param1=val1&param2=val2')
-        ;
+$url = Url::newUrl()
+	->setScheme('https')
+	->setAuthority('www.domain.com')
+	->setPath('/dir1/dir2/file.ext')
+	->setQuery('param1=val1&param2=val2')
+;
 
 ```
 
 #### Modify Url Object ####
-If readOnly mode is enabled, all set or add method`s return will false and not change property
 ```php
+use \Mtchabok\Url\Url;
+$url = Url::newUrl();
 // change scheme
-$url->setScheme('http');
+$url->setScheme('http'); // return $url object
+$url->scheme = 'http';
 
 // change authority = user: sam, pass: 123, host: domain.com
-$url->setAuthority('sam:123@domain.com'); // return $url object or false
+$url->setAuthority('sam:123@domain.com'); // return $url object
 
 // change url path.
-$url->setPath('/dir2/dir1/'); // return $url object or false
+$url->setPath('/dir2/dir1/'); // return $url object
+$url->path = '/dir2/dir1/';
 
 // add path
-$url->addPath('./dir3/file.ext2'); // return $url object or false
+$url->addPath('./dir3/file.ext2'); // return $url object
+$url->path = $url::normalizePath($url->path, './dir3/file.ext2');
 
 // change query
-$url->setQuery('p12=32&name=sara');
+$url->setQuery('p12=32&name=sara'); // return $url object
+$url->query = 'p12=32&name=sara';
 
 // set query param
-$url->setQueryParam('param1', 'test');
-$url->setQueryParam('param4', ['p4_1'=>'val41', 'p4_2'=>'val42']);
+$url->getQuery()->set('param1', 'test'); // return Url Query object
+$url->query->set('param1', 'test'); // return Url Query object
+$url->getQuery()->set('param4', ['p4_1'=>'val41', 'p4_2'=>'val42']); // return Url Query object
+$url->query['param4'] = ['p4_1'=>'val41', 'p4_2'=>'val42']; // return Url Query object
 
 // change fragment
-$url->setFragment('index12');
+$url->setFragment('index12'); // return $url object
+$url->fragment = 'index12';
+
 ```
 
 #### Check exist or set Url Properties ####
 ```php
+use \Mtchabok\Url\Url;
+$url = Url::newUrl();
 // check scheme set
 $url->hasScheme(); // return bool
 
@@ -94,8 +101,11 @@ $url->hasQuery(); // return bool
 
 #### Get Url Properties ####
 ```php
+use \Mtchabok\Url\Url;
+$url = Url::newUrl();
 // scheme
 $url->getScheme(); // return current scheme or empty string
+$url->scheme; // return current scheme or null
 $url->getScheme('file'); // reutrn current scheme or 'file'
 
 // user info
@@ -110,8 +120,18 @@ $url->getHost('host.org');  // return current host or 'host.org'
 $url->getPath();  // return current path or empty string
 $url->getPath('/dir1/dir2/file');  // return current path or '/dir1/dir2/file'
 
-// and ...
 ```
 
+#### PSR-7 and Equals Method`s ####
+```php
+use \Mtchabok\Url\Url;
+$url = Url::newUrl('https://www.domain.com/dir1/dir2/file.ext');
+
+$url2 = $url->withHost('site.com'); // return new Url Object with host 'site.com'
+
+$url->equalsHost($url2->getHost()); // return false
+$url->equalsHost($url2); // return false
+
+```
 
 #### For More Usage Documentation, Use This Url Class By IDE ####

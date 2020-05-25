@@ -1,7 +1,7 @@
 {
   "name": "mtchabok/url",
-  "description": "PHP Url",
-  "keywords": ["PHP Url", "Url", "Url Object"],
+  "description": "PHP Url Class",
+  "keywords": ["PHP Url", "Url", "Url Class"],
   "type": "library",
   "license": "MIT",
   "readme": "README.md",
@@ -12,7 +12,7 @@
     }
   ],
   "require": {
-    "php": ">=7.0"
+    "php": ">=7.2"
   },
   "autoload": {
     "psr-4": {
