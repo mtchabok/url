@@ -88,11 +88,33 @@ REGEXP;
 	}
 
 	/**
-	 * @param string $url
-	 * @return UrlModel
+	 * @param string|array|object|Url|UrlModel $url
+	 * @param array $onlyItems [optional] [scheme, authority, user, pass, host, port, path, query, fragment]
+	 * @return string[]
 	 */
-	public static function parse(string $url) :UrlModel
-	{ return static::newUrlModel($url); }
+	public static function parse($url, array $onlyItems = null) :array
+	{
+		if(!$onlyItems) $onlyItems = ['scheme', 'authority', 'path', 'query', 'fragment'];
+		$parsed = [];
+		if(is_string($url)){
+			if(!preg_match(static::STRUCTURE_REGEX, $url, $url, PREG_UNMATCHED_AS_NULL))
+				$url = [];
+		}elseif (is_object($url)){
+			$url = get_object_vars((object) $url);
+		}
+		if (is_array($url)){
+			if(false!== $pos=array_search('authority', $onlyItems)){
+				unset($onlyItems[$pos]);
+				$onlyItems+= ['user','pass','host','port'];
+			}
+			$onlyItems = array_unique($onlyItems);
+			foreach (['scheme','user','pass','host','port','path','query','fragment'] as $n){
+				if(array_key_exists($n, $url) && in_array($n, $onlyItems))
+					$parsed[$n] = (string) $url[$n];
+			}
+		}
+		return $parsed;
+	}
 
 	/**
 	 * @param string|array|object|Url|UrlModel $url
