@@ -32,13 +32,8 @@ class UrlModel
 	public function __construct($url = null)
 	{
 		$this->query = new UrlQuery();
-		if(is_string($url)){
-			if(!preg_match(Url::STRUCTURE_REGEX, $url, $url, PREG_UNMATCHED_AS_NULL))
-				$url = [];
-		}elseif (is_object($url)){
-			$url = get_object_vars((object) $url);
-		}
-		if (is_array($url)){
+		if(!is_null($url)){
+			if(!is_array($url)) $url = Url::parse($url);
 			foreach (['scheme', 'user', 'pass', 'host', 'fragment'] as $n) {
 				if (array_key_exists($n, $url) && is_string($url[$n]))
 					$this->$n = $url[$n];
