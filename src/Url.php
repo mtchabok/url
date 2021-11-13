@@ -180,6 +180,12 @@ REGEXP;
 	public function isRelativePath() :bool
 	{ return !$this->hasHost() && $this->hasPath() && substr($this->getPath(),0,1)!='/'; }
 
+	/** @return bool */
+	public function isEmpty() :bool
+	{
+		return !$this->hasScheme() && !$this->hasAuthority() && !$this->hasPath() && !$this->hasQuery() && !$this->hasFragment();
+	}
+
 	/**
 	 * @param string|array|UrlModel $url
 	 * @param array $itemsOnly [optional] [scheme, authority, user, pass, host, port, path, query, fragment]
@@ -223,6 +229,145 @@ REGEXP;
 			}
 		}
 		return $urlObj;
+	}
+
+
+	/**
+	 * @param string|array|UrlModel $url
+	 * @param array $itemsOnly [optional] [scheme, authority, user, pass, host, port, path, query, fragment]
+	 * @return Url
+	 */
+	public function without($url, array $itemsOnly = null)
+	{
+		if(!$itemsOnly) $itemsOnly = ['scheme','authority','path','query','fragment'];
+		if(array_key_exists('authority', ($itemsOnly = array_flip($itemsOnly)))){
+			unset($itemsOnly['authority']);
+			$itemsOnly+= ['user'=>'','pass'=>'','host'=>'','port'=>''];
+		} $itemsOnly = array_keys($itemsOnly);
+		$urlObj = clone $this;
+		if($url instanceof Url) $url = static::newUrlModel($url);
+		elseif (!$url instanceof UrlModel) $url = static::newUrlModel($url);
+		foreach (['scheme','user'=>'','pass'=>'','host'=>'','port'=>'','fragment'] as $item){
+			$Item = ucfirst($item);
+			if(in_array($item,$itemsOnly) && !empty($url->{$item}) && $urlObj->{"has{$Item}"}()){
+				$urlObj->{"set{$Item}"}(null);
+			}
+		}
+		if(in_array('path', $itemsOnly) && !empty($url->path) && $urlObj->hasPath()){
+			$p1 = explode('/',$url->path);
+			$p2 = explode('/',$urlObj->getPath());
+			if(!$p2[0] && $p1[0]) array_unshift($p1,'');
+			elseif ($p2[0] && !$p1[0]) array_shift($p1);
+			if($p1==array_slice($p2, 0, count($p1))) {
+				$p2 = array_slice($p2, count($p1));
+				if(false!==$p2) $urlObj->setPath(implode('/', $p2));
+			}
+		}
+		if(in_array('query', $itemsOnly) && !$url->query->isEmpty() && $urlObj->hasQuery()){
+			foreach ($url->query->export() as $k=>&$v){
+				if($urlObj->getQuery()->has($k)) $urlObj->getQuery()->set($k, null);
+			}
+		}
+		return $urlObj;
+	}
+
+
+
+
+
+	/** @return bool */
+	public function hasParent() :bool
+	{ return isset($this->parent) && $this->parent instanceof UrlModel; }
+
+	/**
+	 * @param string|array|UrlModel|Url $default
+	 * @return Url|null
+	 */
+	public function getParent($default = null)
+	{
+		if($this->hasParent()){
+			return static::newUrl($this->parent);
+		}elseif ($default instanceof Url)
+			return $default;
+		elseif ($default instanceof UrlModel || !is_null($default))
+			return static::newUrl($default);
+		return null;
+	}
+
+	/**
+	 * @param string|array|UrlModel|Url $parent
+	 * @return bool
+	 */
+	public function equalsParent($parent) :bool
+	{
+		if($this->hasParent())
+			return $this->getParent()->equalsWith($parent);
+		elseif ($parent instanceof Url)
+			return $parent->equalsWith(null);
+		elseif (!is_null($parent))
+			return static::newUrl($parent)->equalsWith(null);
+		return true;
+	}
+
+	/**
+	 * @param string|array|UrlModel|Url $parent
+	 * @return $this
+	 */
+	public function setParent($parent)
+	{
+		$P = null;
+		if($parent instanceof Url){
+			$P = $parent;
+			$this->parent = static::newUrlModel($parent);
+		}elseif ($parent instanceof UrlModel)
+			$this->parent = $parent;
+		elseif (is_string($parent) || is_array($parent))
+			$this->parent = static::newUrlModel($parent);
+		else
+			$this->parent = null;
+		if($this->hasParent() && !$this->isEmpty()){
+			if(!$P) $P = static::newUrl($this->parent);
+			if($P->hasScheme() && $this->hasScheme()){
+				$this->setScheme(null);
+			}
+			if($P->hasAuthority() && $this->hasAuthority()){
+				if($P->hasUserInfo() && $this->hasUserInfo())
+					$this->setUserInfo(null);
+				if($P->hasHost() && $this->hasHost()){
+					$this->setHost(null);
+				}
+			}
+			if($P->hasPath() && $this->hasPath()){
+				$p1 = explode('/',$P->getPath());
+				$p2 = explode('/',$this->getPath());
+				if(!$p2[0] && $p1[0]) array_unshift($p1,'');
+				elseif ($p2[0] && !$p1[0]) array_shift($p1);
+				if($p1==array_slice($p2, 0, count($p1))) {
+					$p2 = array_slice($p2, count($p1));
+					if(false!==$p2) $this->setPath(implode('/', $p2));
+				}
+			}
+			if($P->hasQuery() && $this->hasQuery()){
+				foreach ($P->getQuery()->export() as $k=>&$v){
+					if($this->getQuery()->has($k)) $this->getQuery()->set($k, null);
+				}
+			}
+			if($P->hasFragment() && $this->hasFragment()){
+				$this->setFragment(null);
+			}
+		}
+		return $this;
+	}
+
+	/**
+	 * @param string|array|UrlModel|Url $parent
+	 * @return Url
+	 */
+	public function withParent($parent)
+	{
+		$url = clone $this;
+		$url->setParent($parent);
+		return $url;
 	}
 
 
@@ -477,6 +622,32 @@ REGEXP;
 		return $urlString;
 	}
 
+	/**
+	 * @param array $onlyItems [optional] [scheme, authority, user, pass, host, port, path, query, fragment]
+	 * @return array
+	 */
+	public function toArray(array $onlyItems = null) :array
+	{
+		if(!$onlyItems) $onlyItems = ['scheme', 'authority', 'path', 'query', 'fragment'];
+		$url = [];
+		foreach ($onlyItems as $item){
+			if($this->{'has'.ucfirst($item)}())
+				$url[$item] = (string) $this->{'get'.ucfirst($item)}();
+		}
+		return $url;
+	}
+
+	/**
+	 * @param array $onlyItems [optional] [scheme, authority, user, pass, host, port, path, query, fragment]
+	 * @return UrlModel
+	 */
+	public function toModel(array $onlyItems = null)
+	{
+		$urlModel = static::newUrlModel($this->toArray($onlyItems));
+		$urlModel->parent = clone $this->parent;
+		return $urlModel;
+	}
+
 
 
 
@@ -488,7 +659,7 @@ REGEXP;
 
 	public function __call($name, $args)
 	{
-		if(preg_match('#^(?P<action>has|get|equals|set|with)(?P<name>[A-Z]\w*)$#', $name, $result)){
+		if(preg_match('#^(?P<action>has|get|equals|set|without|with)(?P<name>[A-Z]\w*)$#', $name, $result)){
 			$name = lcfirst($result['name']);
 			$exist = isset($this->{$name}) && is_string($this->{$name});
 			if(!isset($args[0])) $args[0] = null;
@@ -509,6 +680,8 @@ REGEXP;
 					if($args[0] instanceof UrlModel) $this->{$name} = $args[0]->$name;
 					else $this->{$name} = $args[0];
 					return $this;
+				case 'without':
+					return $this->without($args[0], [$name]);
 				case 'with':
 					$url = clone $this;
 					$url->{'set'.ucfirst($name)}($args[0]);

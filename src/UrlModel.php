@@ -8,6 +8,8 @@ use Mtchabok\Url\Extra\UrlQuery;
  */
 class UrlModel
 {
+	/** @var UrlModel */
+	public $parent = null;
 	/** @var string */
 	public $scheme = null;
 	/** @var string */
